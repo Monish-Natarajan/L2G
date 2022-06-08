@@ -36,7 +36,7 @@ def get_arguments():
     parser.add_argument("--input_size", type=int, default=256)
     parser.add_argument("--dataset", type=str, default='voc2012')
     parser.add_argument("--num_classes", type=int, default=20)
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument("--arch", type=str,default='vgg_v0')
     parser.add_argument("--multi_scale", action='store_true', default=False)
     parser.add_argument("--restore_from", type=str, default='./runs/exp7/model/pascal_voc_epoch_14.pth')
@@ -62,8 +62,10 @@ def get_resnet38_model(args):
     # print(model_dict.keys())
 
     pretrained_dict = {k[7:]: v for k, v in pretrained_dict.items() if k[7:] in model_dict.keys()}
-    print("Weights cannot be loaded:")
-    print([k for k in model_dict.keys() if k not in pretrained_dict.keys()])
+    # print("Weights cannot be loaded:")
+    # print([k for k in model_dict.keys() if k not in pretrained_dict.keys()])
+
+    print("Weights that could not be loaded: ", [k for k in model_dict.keys() if k not in pretrained_dict.keys()])
 
     model_dict.update(pretrained_dict)
     model.load_state_dict(model_dict)
@@ -77,7 +79,7 @@ def validate(args, gpu_id):
     model = get_resnet38_model(args)
     model = model.cuda()
     model.eval()
-    val_loader = test_l2g_data_loader_mp(args, args.multi_scale, process_id=gpu_id)
+    val_loader = test_l2g_data_loader_mp(args, args.multi_scale, process_id=gpu_id, process_num=1)
     
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
@@ -89,7 +91,7 @@ def validate(args, gpu_id):
 
     with torch.no_grad():
         print("process {} start at {}".format(os.getpid(), gpu_id))
-        for idx, dat in tqdm(enumerate(val_loader)):
+        for idx, dat in enumerate(tqdm(val_loader)):
             if idx < args.resume_from:
                 continue
             if not args.multi_scale:
@@ -133,9 +135,4 @@ def validate(args, gpu_id):
 if __name__ == '__main__':
     args = get_arguments()
     processes = []
-    for i in range(4):
-        proc = Process(target=validate, args=(args, i))
-        processes.append(proc)
-        proc.start()
-    for proc in processes:
-        proc.join()
+    validate(args, 0)
